@@ -58,9 +58,33 @@ location_processor = LocationProcessor(gdf_dict, septa_processing_queue, dc_metr
 authentication = Authentication()
 
 # Expose functionality as an API
-@app.route('/find_nearest_station', methods=['GET'])
+@app.route('/find_nearest_station', methods=['GET'], endpoint='find_nearest_station_api')
 @authentication.authenticate_and_rate_limit
 def find_nearest_station_api():
+    try:
+        latitude = float(request.args.get('latitude'))
+        longitude = float(request.args.get('longitude'))
+
+        #Round latitude and longitude to the specified precision
+        rounded_latitude = round(latitude, PRECISION)
+        rounded_longitude = round(longitude, PRECISION)
+    except (TypeError, ValueError):
+        logging.error("Invalid latitude or longitude in the request.")
+        return jsonify({"error": "Invalid latitude or longitude"}), 400
+
+    # Check if location in a valid range
+    if location_processor.is_valid_location(latitude, longitude, SEPTA_VALID_LATITUDE_RANGE, SEPTA_VALID_LONGITUDE_RANGE):
+        logging.error("Invalid coordinates for the SEPTA dataset.")
+        return jsonify({"error": "There are no stations in your vicinity."})
+
+    # Find the nearest station
+    result = location_processor.process_location_for_dataset((rounded_latitude, rounded_longitude), SEPTA_DATASET_KEY)
+    return jsonify(result)
+
+# Expose functionality as an API
+@app.route('/find_nearest_station/v1', methods=['GET'], endpoint='find_nearest_station_api_v1')
+@authentication.authenticate_and_rate_limit
+def find_nearest_station_api_v1():
     try:
         latitude = float(request.args.get('latitude'))
         longitude = float(request.args.get('longitude'))
